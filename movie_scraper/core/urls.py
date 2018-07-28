@@ -4,6 +4,8 @@ from core import views
 
 
 urlpatterns = [
-    path('search_movie/', views.SearchMovie.as_view(), name='search-movie'),
-    path('get_movies/', views.GetMovies.as_view(), name='get-movies')
+    path('movies/', views.MoviesList.as_view(), name='movies-list'),
+    path('search_movie/', views.MovieSearch.as_view(), name='movie-search'),
+    path('movies/<int:movie_id>/',
+         views.MovieRetrieve.as_view(), name='movie-retrieve'),
 ]
