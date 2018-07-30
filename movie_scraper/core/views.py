@@ -2,13 +2,35 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from core.exceptions import (
+    InvalidPageStructureException, ServerException,
+    ServiceUnavailable, SiteFetchException
+)
 from core.scrapper import get_movies, search_movie
 
 
 URL = 'https://silverbirdcinemas.com/cinema/accra/'
 
 
-class MovieSearch(APIView):
+class MoviesAPIView(APIView):
+    """
+    The base operation of all movie views is abstracted here
+    """
+
+    def get_movies(self, request):
+        try:
+            movies = get_movies(URL)
+        except InvalidPageStructureException:
+            raise ServerException(
+                {'error': f'The structure of the site: {URL} has changed'})
+        except SiteFetchException as exc:
+            raise ServiceUnavailable(str(exc))
+
+        return movies
+
+
+
+class MovieSearch(MoviesAPIView):
     """
     Exposes an endpoint to search for a specific movie by title
     """
@@ -23,8 +45,8 @@ class MovieSearch(APIView):
             raise ValidationError(
                 {'error': 'movie_title not supplied in query params'})
 
-        movies = get_movies(URL)
-        movies = sorted(movies, key= lambda movie: movie['title'])
+        movies = self.get_movies(request)
+        movies = sorted(movies, key= lambda movie: movie['title'].lower())
         movie = search_movie(movie_title, movies)
         if not movie:
             raise NotFound({'msg': 'Movie not found'})
@@ -32,26 +54,26 @@ class MovieSearch(APIView):
         return Response(data=movie)
 
 
-class MoviesList(APIView):
+class MoviesList(MoviesAPIView):
     """List all Movies scrapped"""
 
     def get(self, request, *args, **kwargs):
         """
         /api/v1/movies/
         """
-        movies = get_movies(URL)
-        return Response(movies)
+        return Response(self.get_movies(request))
 
 
-class MovieRetrieve(APIView):
+class MovieRetrieve(MoviesAPIView):
     """Retrieve a move by its index in the list of movies"""
 
     def get(self, request, movie_id, *args, **kwargs):
         """
         /api/v1/movies/<movie_id>/
         """
+        movies = self.get_movies(request)
         try:
-            movie = get_movies(URL)[movie_id]
+            movie = movies[movie_id]
         except IndexError:
             raise NotFound()
         return Response(movie)

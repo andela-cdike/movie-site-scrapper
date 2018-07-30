@@ -4,11 +4,33 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 
+from core.exceptions import (
+    InvalidPageStructureException, ServerException,
+    ServiceUnavailable, SiteFetchException
+)
+
 
 MOVIE_LIST = [
     {'title': 'The Bread my sweet'},
     {'title': 'Ravenclaw'}
 ]
+
+
+class MoviesAPIView(TestCase):
+
+    @patch('core.views.get_movies',
+           side_effect=InvalidPageStructureException)
+    def test_get_movies_raises_server_exception(self, mock_get_movies):
+        response = self.client.get(reverse('movies-list'))
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIsNotNone(response.data['error'])
+
+    @patch('core.views.get_movies',
+           side_effect=SiteFetchException('An error occured'))
+    def test_get_movies_raises_server_exception(self, mock_get_movies):
+        response = self.client.get(reverse('movies-list'))
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIsNotNone(response.data, 'An error occured')
 
 
 @patch('core.views.get_movies', return_value=MOVIE_LIST)
@@ -25,7 +47,7 @@ class MovieSearchTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data, {'msg': 'Movie not found'})
 
-    def test_search_movie_exist(self, movies_mock):
+    def test_search_movie_exist(self, _):
         response = self.client.get(
             reverse('movie-search') + '?movie_title=Ravenclaw')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -44,6 +66,7 @@ class MovieListTest(TestCase):
         response = self.client.get(reverse('movies-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
 
 @patch('core.views.get_movies', return_value=MOVIE_LIST)
 class MovieRetrieveTest(TestCase):
